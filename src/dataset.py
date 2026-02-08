@@ -274,6 +274,9 @@ class Dataset:
         if "grav" not in df.columns:
             df["grav"] = pd.array([pd.NA] * len(df), dtype="Int8")
 
+        # Drop rows where grav == -1 (unknown severity, unusable for training)
+        df = df[df["grav"].isna() | (df["grav"] != -1)]
+
         df = df.reindex(columns=CANONICAL_USERS)
         return _cast_dtypes(df, _DTYPES_USERS)
 
