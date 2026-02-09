@@ -68,6 +68,47 @@ The 13 training years fall into **3 distinct format eras**, and the test set is 
 | `id_usager` | Absent | Absent | **Added** | Present |
 | `grav` | Present | Present | Present | **Absent** (target) |
 
+## Unexpected values found during audit
+
+After normalizing all years, a value check against the official BAAC codebook revealed the following anomalies:
+
+### characteristics.csv
+| Column | Unexpected value | Action |
+|--------|-----------------|--------|
+| `lum` | `-1` | Replaced with NaN (not in codebook) |
+| `int` | `0` or `1` | Replaced with NaN (not in codebook) |
+
+### locations.csv
+| Column | Unexpected value | Action |
+|--------|-----------------|--------|
+| `circ` | `0` | Replaced with NaN (not in codebook) |
+| `prof` | `0` | Replaced with NaN (not in codebook) |
+| `plan` | `0` | Replaced with NaN (not in codebook) |
+| `surf` | `0` | Replaced with NaN (not in codebook) |
+
+### vehicles.csv
+| Column | Unexpected value | Action |
+|--------|-----------------|--------|
+| `catv` | `-1` | Replaced with NaN (only 13 rows across all years, noise) |
+
+### users.csv
+| Column | Unexpected value | Action |
+|--------|-----------------|--------|
+| `catu` | `4` | Deprecated category (roller/scooter). Remapped to `catu=3` (pedestrian) + `catv=99` (other vehicle) at merge time, for consistency with post-2018 data |
+| `sexe` | `-1` | Replaced with NaN (not in codebook) |
+| `etatp` | `0` | See pedestrian-specific fields below |
+
+### Pedestrian-specific fields (`etatp`, `locp`, `actp`)
+
+These fields only apply to pedestrian rows (`catu=3`). Investigation across all years confirmed:
+- **Non-pedestrians** with value `0`: the field is not applicable → replaced with **NaN**
+- **Pedestrians** with value `0`: the state is unknown → replaced with **-1** (non renseigné)
+- Non-pedestrian rows with values in {1,2,3} (~100 rows total): data entry errors → replaced with **NaN**
+
+### `grav = -1`
+
+Some rows have `grav=-1` (unknown severity). These are dropped entirely since they cannot contribute to the binary target `GRAVE`.
+
 ## Other quirks
 
 ### Float artifacts (Group B, 2012-2018)

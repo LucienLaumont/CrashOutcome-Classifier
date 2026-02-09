@@ -40,6 +40,31 @@ CANONICAL_USERS = [
     "locp", "actp", "etatp",
 ]
 
+VALUES_MAP_CHARACTERISTICS = {
+    "lum": [1,2,3,4,5], "agg": [1,2], "int": [1,2,3,4,5,6,7,8,9], "atm": [-1,1,2,3,4,5,6,7,8,9],
+    "col": [-1,1,2,3,4,5,6,7],
+}
+
+VALUES_MAP_LOCATIONS = {
+    "catr": [1,2,3,4,5,6,7,8,9], "circ": [-1,1,2,3,4],
+    "vosp": [-1,0,1,2,3], "prof": [-1,1,2,3,4], "plan": [-1,1,2,3,4],
+    "surf": [-1,1,2,3,4,5,6,7,8,9], "infra": [-1,0,1,2,3,4,5,6,7,8,9],
+    "situ": [-1,0,1,2,3,4,5,6,7,8],
+}
+
+VALUES_MAP_VEHICLES = {
+    "senc": [-1,0,1,2,3], "catv": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,30,31,32,33,34,35,36,37,38,39,40,41,42,43,50,60,80,99], 
+    "obs": [-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17], "obsm": [-1,0,1,2,4,5,6,9],
+    "choc": [-1,0,1,2,3,4,5,6,7,8,9], "manv": [-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26],
+    "motor": [-1,0,1,2,3,4,5,6]
+}
+
+VALUES_MAP_USERS = {
+    "catu": [1,2,3], "sexe": [1,2], "trajet": [-1,0,1,2,3,4,5,9], 
+    "secu1": [-1,0,1,2,3,4,5,6,7,8,9], "secu2": [-1,0,1,2,3,4,5,6,7,8,9], "secu3": [-1,0,1,2,3,4,5,6,7,8,9],
+    "actp": [-1,0,1,2,3,4,5,6,7,8,9,"A","B"], "etatp": [-1,1,2,3]
+}
+
 # ──────────────────────────────────────────────
 # Target dtypes per table (nullable ints for NaN support)
 # Columns not listed here keep their inferred dtype.
@@ -167,6 +192,12 @@ class Dataset:
         df = self.characteristics.merge(self.locations, on="Num_Acc", how="inner")
         df = df.merge(self.vehicles, on="Num_Acc", how="inner")
         df = df.merge(self.users, on=["Num_Acc", "num_veh"], how="inner")
+
+        # Remap deprecated catu=4 (roller/scooter) → catu=3 (pedestrian) + catv=99
+        mask_catu4 = df["catu"] == 4
+        df.loc[mask_catu4, "catv"] = 99
+        df.loc[mask_catu4, "catu"] = 3
+
         return df
 
     # ── Raw read ─────────────────────────────
@@ -198,6 +229,10 @@ class Dataset:
                 .pipe(pd.to_numeric, errors="coerce")
             )
 
+        # Replace unexpected values with NaN
+        df["lum"] = df["lum"].replace(-1, pd.NA)
+        df["int"] = df["int"].replace({0: pd.NA, -1: pd.NA})
+
         # Keep com/dep as strings
         df["com"] = df["com"].astype(str)
         df["dep"] = df["dep"].astype(str)
@@ -216,6 +251,11 @@ class Dataset:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
+        # Replace unexpected 0s with NaN
+        for col in ("circ", "prof", "plan", "surf"):
+            if col in df.columns:
+                df[col] = df[col].replace(0, pd.NA)
+
         # Keep string columns as strings
         for col in ("pr", "pr1", "lartpc", "larrout", "voie", "v1", "v2"):
             if col in df.columns:
@@ -233,6 +273,9 @@ class Dataset:
         for col in ("senc", "obs", "obsm", "choc", "manv"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Replace catv=-1 with NaN (noise, only 13 rows)
+        df["catv"] = df["catv"].replace(-1, pd.NA)
 
         df = df.reindex(columns=CANONICAL_VEHICLES)
         return _cast_dtypes(df, _DTYPES_VEHICLES)
@@ -270,6 +313,18 @@ class Dataset:
 
         # Group C: secu1/2/3 already present, nothing to do
 
+        # Replace sexe=-1 with NaN
+        df["sexe"] = df["sexe"].replace(-1, pd.NA)
+
+        # Pedestrian-specific fields (etatp, locp, actp)
+        is_ped = df["catu"] == 3
+        for col in ("etatp", "locp", "actp"):
+            if col in df.columns:
+                # Non-pedestrians: not applicable → NaN
+                df.loc[~is_ped, col] = pd.NA
+                # Pedestrians with 0: not specified → -1
+                df.loc[is_ped & (df[col] == 0), col] = -1
+
         # Ensure grav column exists (absent in test)
         if "grav" not in df.columns:
             df["grav"] = pd.array([pd.NA] * len(df), dtype="Int8")
@@ -279,6 +334,40 @@ class Dataset:
 
         df = df.reindex(columns=CANONICAL_USERS)
         return _cast_dtypes(df, _DTYPES_USERS)
+
+    # ── Value checking ──────────────────────
+
+    def check_values(self) -> dict[str, dict[str, set]]:
+        """Return unexpected values for each table.
+
+        Returns a dict like::
+
+            {
+                "characteristics": {"col": {8, 99}},
+                "locations": {},
+                ...
+            }
+
+        An empty inner dict means all values are valid.
+        """
+        table_map = {
+            "characteristics": (self.characteristics, VALUES_MAP_CHARACTERISTICS),
+            "locations":       (self.locations,       VALUES_MAP_LOCATIONS),
+            "vehicles":        (self.vehicles,        VALUES_MAP_VEHICLES),
+            "users":           (self.users,           VALUES_MAP_USERS),
+        }
+        result = {}
+        for table_name, (df, values_map) in table_map.items():
+            unexpected = {}
+            for col, valid in values_map.items():
+                if col not in df.columns:
+                    continue
+                actual = set(df[col].dropna().unique())
+                invalid = actual - set(valid)
+                if invalid:
+                    unexpected[col] = invalid
+            result[table_name] = unexpected
+        return result
 
     # ── Repr ─────────────────────────────────
 
