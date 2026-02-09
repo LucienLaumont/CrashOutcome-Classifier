@@ -41,26 +41,26 @@ CANONICAL_USERS = [
 ]
 
 VALUES_MAP_CHARACTERISTICS = {
-    "lum": [1,2,3,4,5], "agg": [1,2], "int": [1,2,3,4,5,6,7,8,9], "atm": [-1,1,2,3,4,5,6,7,8,9],
-    "col": [-1,1,2,3,4,5,6,7],
+    "lum": [1,2,3,4,5], "agg": [1,2], "int": [1,2,3,4,5,6,7,8,9], "atm": [1,2,3,4,5,6,7,8,9],
+    "col": [1,2,3,4,5,6,7],
 }
 
 VALUES_MAP_LOCATIONS = {
-    "catr": [1,2,3,4,5,6,7,8,9], "circ": [-1,1,2,3,4],
-    "vosp": [-1,0,1,2,3], "prof": [-1,1,2,3,4], "plan": [-1,1,2,3,4],
-    "surf": [-1,1,2,3,4,5,6,7,8,9], "infra": [-1,0,1,2,3,4,5,6,7,8,9],
-    "situ": [-1,0,1,2,3,4,5,6,7,8],
+    "catr": [1,2,3,4,5,6,7,8,9], "circ": [1,2,3,4],
+    "vosp": [0,1,2,3], "prof": [1,2,3,4], "plan": [1,2,3,4],
+    "surf": [1,2,3,4,5,6,7,8,9], "infra": [0,1,2,3,4,5,6,7,8,9],
+    "situ": [0,1,2,3,4,5,6,7,8],
 }
 
 VALUES_MAP_VEHICLES = {
-    "senc": [-1,0,1,2,3], "catv": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,30,31,32,33,34,35,36,37,38,39,40,41,42,43,50,60,80,99], 
-    "obs": [-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17], "obsm": [-1,0,1,2,4,5,6,9],
-    "choc": [-1,0,1,2,3,4,5,6,7,8,9], "manv": [-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26],
+    "senc": [0,1,2,3], "catv": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,30,31,32,33,34,35,36,37,38,39,40,41,42,43,50,60,80,99],
+    "obs": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17], "obsm": [0,1,2,4,5,6,9],
+    "choc": [0,1,2,3,4,5,6,7,8,9], "manv": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26],
     "motor": [-1,0,1,2,3,4,5,6]
 }
 
 VALUES_MAP_USERS = {
-    "catu": [1,2,3], "sexe": [1,2], "trajet": [-1,0,1,2,3,4,5,9],
+    "catu": [1,2,3], "sexe": [1,2], "trajet": [1,2,3,4,5,9],
     "secu1": [0,1,2,3,4,5,6,7,8,9],
     "actp": [-1,0,1,2,3,4,5,6,7,8,9,"A","B"], "etatp": [-1,1,2,3]
 }
@@ -229,8 +229,9 @@ class Dataset:
                 .pipe(pd.to_numeric, errors="coerce")
             )
 
-        # Replace unexpected values with NaN
-        df["lum"] = df["lum"].replace(-1, pd.NA)
+        # Replace -1 / 0 (non renseigné) with NaN
+        for col in ("lum", "atm", "col"):
+            df[col] = df[col].replace(-1, pd.NA)
         df["int"] = df["int"].replace({0: pd.NA, -1: pd.NA})
 
         # Keep com/dep as strings
@@ -250,6 +251,11 @@ class Dataset:
         for col in ("circ", "nbv", "vosp", "prof", "plan", "surf", "infra", "situ"):
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Replace -1 (non renseigné) with NaN
+        for col in ("circ", "nbv", "vosp", "prof", "plan", "surf", "infra", "situ"):
+            if col in df.columns:
+                df[col] = df[col].replace(-1, pd.NA)
 
         # Replace unexpected 0s with NaN
         for col in ("circ", "prof", "plan", "surf"):
@@ -274,8 +280,9 @@ class Dataset:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Replace catv=-1 with NaN (noise, only 13 rows)
-        df["catv"] = df["catv"].replace(-1, pd.NA)
+        # Replace -1 (non renseigné) with NaN
+        for col in ("catv", "senc", "obs", "obsm", "choc", "manv"):
+            df[col] = df[col].replace(-1, pd.NA)
 
         df = df.reindex(columns=CANONICAL_VEHICLES)
         return _cast_dtypes(df, _DTYPES_VEHICLES)
@@ -322,8 +329,10 @@ class Dataset:
         if "secu1" in df.columns:
             df["secu1"] = df["secu1"].replace(-1, pd.NA)
 
-        # Replace sexe=-1 with NaN
-        df["sexe"] = df["sexe"].replace(-1, pd.NA)
+        # Replace -1 (non renseigné) with NaN
+        for col in ("sexe", "place"):
+            df[col] = df[col].replace(-1, pd.NA)
+        df["trajet"] = df["trajet"].replace({0: pd.NA, -1: pd.NA})
 
         # Pedestrian-specific fields (etatp, locp, actp)
         is_ped = df["catu"] == 3

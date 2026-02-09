@@ -126,6 +126,20 @@ This means we lose two pieces of information:
 1. Whether equipment existed but was **not used** (pre-2019 only) → treated as NaN
 2. Second and third equipment (post-2019 only) → dropped for cross-era consistency
 
+### Unified "non renseigné" handling (`-1` and `0` → NaN)
+
+Many columns use `-1` (or `0` in some cases) to encode "non renseigné" (not specified). After audit, all such values have been replaced with NaN for consistency. This allows ML models (LightGBM, XGBoost) to handle them natively as missing values.
+
+| Table | Columns with `-1` → NaN |
+|-------|------------------------|
+| **characteristics** | `lum`, `atm`, `col`, `int` (also `0` → NaN) |
+| **locations** | `circ`, `nbv`, `vosp`, `prof`, `plan`, `surf`, `infra`, `situ` (also `0` → NaN for `circ`, `prof`, `plan`, `surf`) |
+| **vehicles** | `catv`, `senc`, `obs`, `obsm`, `choc`, `manv` |
+| **users** | `sexe`, `place`, `secu1`, `trajet` (also `0` → NaN) |
+
+**Exceptions** (kept as-is):
+- `etatp`, `locp`, `actp` in users: `-1` means "non renseigné" specifically for pedestrians, which is semantically distinct from NaN (field not applicable for non-pedestrians)
+
 ### `grav = -1`
 
 Some rows have `grav=-1` (unknown severity). These are dropped entirely since they cannot contribute to the binary target `GRAVE`.
