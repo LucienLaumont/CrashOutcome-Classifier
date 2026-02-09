@@ -208,3 +208,7 @@ __marimo__/
 
 # Claude
 .claude
+
+# Model files and submission files
+submissions/
+models/
