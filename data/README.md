@@ -161,6 +161,30 @@ Distribution: ~930k `GRAVE=0` (59%), ~653k `GRAVE=1` (41%).
 | `nb_pietons` | Number of pedestrians (`catu == 3`) |
 | `nb_occupants_vehicule` | Number of non-pedestrian users per vehicle (`catu != 3`) |
 
+### Dropped columns (feature selection)
+
+Free-text, identifier, and high-cardinality string columns removed before modeling:
+
+| Column | Table | Reason |
+|--------|-------|--------|
+| `adr` | characteristics | Free-text address — already dropped during normalization |
+| `lat`, `long` | characteristics | Incompatible coordinate systems across format groups — already dropped during normalization |
+| `voie` | locations | Road name/number — free-text, very high cardinality |
+| `v1`, `v2` | locations | Alphanumeric road index points — free-text identifiers |
+| `pr`, `pr1` | locations | Milestone references (bornes kilométriques) — not meaningful as numeric features |
+| `com` | characteristics | Commune code — inconsistent format across groups (3-digit vs full INSEE), ~36k unique values. Geographic dimension already captured by `dep` |
+| `an_nais` | users | Birth year — redundant with the derived `age` feature |
+| `hrmn` | characteristics | Raw HHMM time — replaced by the derived `hour` feature |
+| `Num_Acc` | all | Accident identifier — dropped after all groupby-based features are computed |
+| `num_veh` | vehicles/users | Vehicle identifier within accident — dropped after aggregation features are computed |
+
+### Variable transformations
+
+| Transformation | Description |
+|----------------|-------------|
+| `hrmn` → `hour` | Extract hour of the day (`hrmn // 100`, range 0-23) |
+| `lartpc`, `larrout` | Road widths converted from string to numeric |
+
 ### Individual-level features
 
 | Feature | Description |
