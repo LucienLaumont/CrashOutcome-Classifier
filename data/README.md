@@ -105,6 +105,27 @@ These fields only apply to pedestrian rows (`catu=3`). Investigation across all 
 - **Pedestrians** with value `0`: the state is unknown → replaced with **-1** (non renseigné)
 - Non-pedestrian rows with values in {1,2,3} (~100 rows total): data entry errors → replaced with **NaN**
 
+### Safety equipment standardization (`secu`)
+
+The encoding of safety equipment changed completely between format eras:
+
+**Pre-2019 (Groups A, B):** Single `secu` column, 2-digit code:
+- Tens digit = equipment type: 1=belt, 2=helmet, 3=child device, 4=reflective, 9=other
+- Units digit = usage: 1=yes, 2=no, 3=undetermined
+
+**Post-2019 (Group C):** Three columns `secu1`, `secu2`, `secu3`, each with a combined code:
+- -1=unknown, 0=none, 1=belt, 2=helmet, 3=child device, 4=reflective vest, 5=airbag, 6=gloves, 7=gloves+airbag, 8=undetermined
+
+**Standardization applied:** Keep only a single `secu1` column representing the equipment type when effectively used:
+- Pre-2019: extract equipment type (tens digit) only if usage == 1 (yes), otherwise NaN
+- Post-2019: keep `secu1` as-is, drop `secu2` and `secu3` (no multi-equipment info available pre-2019)
+- Test set (hybrid): prefer `secu1` if present, otherwise derive from old `secu` with the same logic
+- All `-1` values converted to NaN
+
+This means we lose two pieces of information:
+1. Whether equipment existed but was **not used** (pre-2019 only) → treated as NaN
+2. Second and third equipment (post-2019 only) → dropped for cross-era consistency
+
 ### `grav = -1`
 
 Some rows have `grav=-1` (unknown severity). These are dropped entirely since they cannot contribute to the binary target `GRAVE`.

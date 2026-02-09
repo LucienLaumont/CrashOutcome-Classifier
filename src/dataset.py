@@ -36,7 +36,7 @@ CANONICAL_VEHICLES = [
 CANONICAL_USERS = [
     "Num_Acc", "num_veh", "place", "catu", "grav",
     "sexe", "an_nais", "trajet",
-    "secu1", "secu2", "secu3",
+    "secu1",
     "locp", "actp", "etatp",
 ]
 
@@ -60,8 +60,8 @@ VALUES_MAP_VEHICLES = {
 }
 
 VALUES_MAP_USERS = {
-    "catu": [1,2,3], "sexe": [1,2], "trajet": [-1,0,1,2,3,4,5,9], 
-    "secu1": [-1,0,1,2,3,4,5,6,7,8,9], "secu2": [-1,0,1,2,3,4,5,6,7,8,9], "secu3": [-1,0,1,2,3,4,5,6,7,8,9],
+    "catu": [1,2,3], "sexe": [1,2], "trajet": [-1,0,1,2,3,4,5,9],
+    "secu1": [0,1,2,3,4,5,6,7,8,9],
     "actp": [-1,0,1,2,3,4,5,6,7,8,9,"A","B"], "etatp": [-1,1,2,3]
 }
 
@@ -95,7 +95,7 @@ _DTYPES_USERS = {
     "Num_Acc": "Int64",
     "place": "Int8", "catu": "Int8", "grav": "Int8",
     "sexe": "Int8", "an_nais": "Int16", "trajet": "Int8",
-    "secu1": "Int8", "secu2": "Int8", "secu3": "Int8",
+    "secu1": "Int8",
     "locp": "Int8", "actp": "Int8", "etatp": "Int8",
 }
 
@@ -290,28 +290,37 @@ class Dataset:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Handle secu → secu1/secu2/secu3
+        # Standardize secu → single secu1 column (equipment type if used)
         if self.group in ("A", "B"):
+            # Old format: 2-digit (tens=equipment type, units=usage 1=yes/2=no/3=unknown)
             secu = pd.to_numeric(df["secu"], errors="coerce")
-            df["secu1"] = secu // 10
-            df["secu2"] = secu % 10
-            df["secu3"] = -1
+            equip_type = secu // 10
+            usage = secu % 10
+            # Keep equipment type only if used (usage == 1), else NaN
+            df["secu1"] = equip_type.where(usage == 1)
             df = df.drop(columns=["secu"])
 
         elif self.group == "D":
-            # Test set hybrid: both secu and secu1/2/3 exist
+            # Test set hybrid: both secu and secu1/2/3 may exist
             secu = pd.to_numeric(df.get("secu"), errors="coerce")
-            for c in ("secu1", "secu2", "secu3"):
-                if c in df.columns:
-                    df[c] = pd.to_numeric(df[c], errors="coerce")
+            if "secu1" in df.columns:
+                df["secu1"] = pd.to_numeric(df["secu1"], errors="coerce")
+            # Fill missing secu1 from old secu column
             if secu is not None and "secu1" in df.columns:
-                mask = df["secu1"].isna() & secu.notna()
-                df.loc[mask, "secu1"] = secu[mask] // 10
-                df.loc[mask, "secu2"] = secu[mask] % 10
-                df.loc[mask, "secu3"] = -1
-            df = df.drop(columns=["secu"], errors="ignore")
+                equip_type = secu // 10
+                usage = secu % 10
+                derived = equip_type.where(usage == 1)
+                mask = df["secu1"].isna() & derived.notna()
+                df.loc[mask, "secu1"] = derived[mask]
+            df = df.drop(columns=["secu", "secu2", "secu3"], errors="ignore")
 
-        # Group C: secu1/2/3 already present, nothing to do
+        elif self.group == "C":
+            # Post-2019: secu1 already has the right format, drop secu2/3
+            df = df.drop(columns=["secu2", "secu3"], errors="ignore")
+
+        # Convert -1 (non renseigné) to NaN
+        if "secu1" in df.columns:
+            df["secu1"] = df["secu1"].replace(-1, pd.NA)
 
         # Replace sexe=-1 with NaN
         df["sexe"] = df["sexe"].replace(-1, pd.NA)
