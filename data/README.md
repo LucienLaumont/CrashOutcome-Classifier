@@ -144,6 +144,29 @@ Many columns use `-1` (or `0` in some cases) to encode "non renseigné" (not spe
 
 Some rows have `grav=-1` (unknown severity). These are dropped entirely since they cannot contribute to the binary target `GRAVE`.
 
+## Feature engineering
+
+### Target variable: `GRAVE`
+
+Binary target at the **accident level**: `GRAVE = 1` if at least one user was killed (`grav=2`) or hospitalized (`grav=3`), `0` otherwise. Propagated to every row of the same accident via `groupby("Num_Acc").transform("max")`. The original `grav` column is dropped after transformation.
+
+Distribution: ~930k `GRAVE=0` (59%), ~653k `GRAVE=1` (41%).
+
+### Accident-level aggregation features
+
+| Feature | Description |
+|---------|-------------|
+| `nb_vehicules` | Number of distinct vehicles involved (`num_veh` nunique) |
+| `nb_usagers` | Total number of users (drivers, passengers, pedestrians) |
+| `nb_pietons` | Number of pedestrians (`catu == 3`) |
+| `nb_occupants_vehicule` | Number of non-pedestrian users per vehicle (`catu != 3`) |
+
+### Individual-level features
+
+| Feature | Description |
+|---------|-------------|
+| `age` | Age at the time of the accident (`an - an_nais`). Values outside [0, 120] are replaced with NaN (data entry errors). |
+
 ## Other quirks
 
 ### Float artifacts (Group B, 2012-2018)
