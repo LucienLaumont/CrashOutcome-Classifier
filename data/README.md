@@ -144,7 +144,7 @@ Many columns use `-1` (or `0` in some cases) to encode "non renseigné" (not spe
 
 Some rows have `grav=-1` (unknown severity). These are dropped entirely since they cannot contribute to the binary target `GRAVE`.
 
-## Feature engineering
+# Feature engineering
 
 ### Target variable: `GRAVE`
 
@@ -191,7 +191,7 @@ Free-text, identifier, and high-cardinality string columns removed before modeli
 |---------|-------------|
 | `age` | Age at the time of the accident (`an - an_nais`). Values outside [0, 120] are replaced with NaN (data entry errors). |
 
-## Other quirks
+# Other quirks
 
 ### Float artifacts (Group B, 2012-2018)
 Many integer columns have `.0` suffixes (e.g., `1.0` instead of `1`) due to NaN values causing pandas to cast int columns to float. Affected columns include: `atm`, `col`, `circ`, `nbv`, `vosp`, `prof`, `plan`, `obs`, `obsm`, `choc`, `manv`, `place`, `trajet`, `secu`, `locp`, `actp`, `etatp`, `an_nais`.
